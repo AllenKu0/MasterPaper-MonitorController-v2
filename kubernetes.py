@@ -6,6 +6,9 @@ import re
 cluster1_pod_cidr = "10.244.0.0/16"
 cluster2_pod_cidr = "10.245.0.0/16"
 
+cluster1_ip = "10.1.0.24"
+cluster2_ip = "10.1.0.25"
+
 CLUSTER1="cluster1"
 CLUSTER2="cluster2"
 
@@ -14,9 +17,9 @@ def determine_cluster(client_host: str) -> str:
     client_ip = ipaddress.ip_address(client_host)
 
     # 檢查 client_ip 是否屬於 cluster1 或 cluster2 的 pod CIDR 範圍
-    if client_ip in ipaddress.ip_network(cluster1_pod_cidr):
+    if client_ip in ipaddress.ip_network(cluster1_pod_cidr) or client_host == cluster1_ip:
         return CLUSTER1
-    elif client_ip in ipaddress.ip_network(cluster2_pod_cidr):
+    elif client_ip in ipaddress.ip_network(cluster2_pod_cidr) or client_host == cluster2_ip:
         return CLUSTER2
     else:
         return "unknown"
@@ -25,6 +28,7 @@ def get_pod_info_by_lable(cluster, label):
     jsonpath = r"{range .items[*]}{.metadata.name} /{.status.podIP} /{.metadata.labels.enable}{end}"
     cmd = f"kubectl --context={cluster} get pods -l {label} -o jsonpath=\"{jsonpath}\""
     pod_info = os.popen(cmd).read().strip().split("/")
+    print("pod_info: ", pod_info)
     # 分別取得 Pod 名稱、IP 和啟用狀態
     pod_name = pod_info[0].strip()
     pod_ip = pod_info[1].strip()

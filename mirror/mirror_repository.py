@@ -1,6 +1,6 @@
 from pymongo import MongoClient
 
-client = MongoClient("mongodb://10.245.0.197:27017/")
+client = MongoClient("mongodb://10.244.0.174:27017/")
 db = client["monitor"]
 collection = db["mirror"]
 

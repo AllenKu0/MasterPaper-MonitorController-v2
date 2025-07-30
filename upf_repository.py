@@ -1,7 +1,7 @@
 from pymongo import MongoClient
 import kubernetes as k
 
-client = MongoClient("mongodb://10.245.0.197:27017/")
+client = MongoClient("mongodb://10.244.0.174:27017/")
 db = client["monitor"]
 collection = db["upf"]
 
@@ -49,12 +49,11 @@ def mongodb_insert(cluster, pod_name, pod_ip, pod_mac, enable):
 
     return "Insert Success"
 # updaet
-def mongodb_update(cluster, pod_name, pod_ip, enable):
+def mongodb_update(cluster, pod_name, enable):
     # 構建更新條件 (匹配的條件)
     query = {
         "cluster": cluster,
-        "pod_name": pod_name,
-        "pod_ip": pod_ip,
+        "pod_name": pod_name
     }
 
     # 構建更新的內容

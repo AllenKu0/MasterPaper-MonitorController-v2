@@ -2,6 +2,7 @@ import time
 import ctypes
 import requests
 import asyncio
+import httpx
 from bcc import BPF
 from pyroute2 import IPRoute, AsyncIPRoute
 from pyroute2 import NetlinkError
@@ -15,12 +16,12 @@ THRESHOLD_PACKAGE = 50
 over_latency_times = 0
 OVER_LATENCY_THRESHOLD_TIMES = 2
 # 設定延遲閾值
-LATENCY_THRESHOLD_NS = 10_000_000  # 5ms
+LATENCY_THRESHOLD_NS = 3_700_000  # 5ms
 
 # Webhook URL
-WEBHOOK_URL = "http://10.1.0.25:8080/alert"  # 根據你的實際伺服器修改
+WEBHOOK_URL = "http://10.1.0.24:8080/alert"  # 根據你的實際伺服器修改
 
-async def load_ebpf_program(IFNAME):
+async def load_ebpf_program(IFNAME, pod_name):
     async with AsyncIPRoute() as ipr:
         # 載入 BPF C 程式
         b = BPF(src_file="trace_latency/trace_latency_kernalspace.c")
@@ -54,7 +55,7 @@ async def load_ebpf_program(IFNAME):
 
         print(f"BPF program loaded on {IFNAME}. Press Ctrl+C to exit...")
         
-        latency_task = asyncio.create_task(monitor_latency(processing_map))
+        latency_task = asyncio.create_task(monitor_latency(processing_map, pod_name))
         return latency_task, idx
 
 # 卸載 BPF 程式的功能
@@ -71,7 +72,7 @@ async def unload_ebpf_program(IFNAME):
             print(f"Failed to delete clsact: {e}")
     
     
-async def monitor_latency(processing_map):
+async def monitor_latency(processing_map, pod_name):
     global package_count, over_latency_times
     try:
         while True:
@@ -99,16 +100,26 @@ async def monitor_latency(processing_map):
                         payload = {
                             "alertname": "High GTP-U Latency",
                             "threshold_ns": LATENCY_THRESHOLD_NS,
-                            "over_latency_times": OVER_LATENCY_THRESHOLD_TIMES
+                            "over_latency_times": OVER_LATENCY_THRESHOLD_TIMES,
+                            "pod_name": pod_name
                         }
                         try:
-                            resp = requests.post(WEBHOOK_URL, json=payload, timeout=2)
-                            if resp.status_code == 200:
-                                print("[Webhook] Sent successfully")
-                            else:
-                                print(f"[Webhook] Failed with status {resp.status_code}")
-                        except Exception as e:
+                            async with httpx.AsyncClient(timeout=10) as client:
+                                resp = await client.post(WEBHOOK_URL, json=payload)
+                                if resp.status_code == 200:
+                                    print("[Webhook] Sent successfully")
+                                else:
+                                    print(f"[Webhook] Failed with status {resp.status_code}")
+                        except httpx.RequestError as e:
                             print(f"[Webhook] Error: {e}")
+                        # try:
+                        #     resp = requests.post(WEBHOOK_URL, json=payload, timeout=10)
+                        #     if resp.status_code == 200:
+                        #         print("[Webhook] Sent successfully")
+                        #     else:
+                        #         print(f"[Webhook] Failed with status {resp.status_code}")
+                        # except Exception as e:
+                        #     print(f"[Webhook] Error: {e}")
 
                 # 可以選擇清除 map 內容以避免重複通知
                 processing_map.pop(k)
